@@ -1,0 +1,50 @@
+module Main exposing (main)
+
+import Browser
+import Html exposing (Html)
+import Html.Events as Event
+
+
+main : Program {} Model Msg
+main =
+    Browser.sandbox
+        { init = init
+        , update = update
+        , view = view
+        }
+
+
+type alias Model =
+    Int
+
+
+init =
+    0
+
+
+type Msg
+    = ClickedPlus
+    | ClickedMinus
+
+
+update : Msg -> Model -> Model
+update msg model =
+    when msg is
+        ClickedPlus ->
+            model + 1
+        
+        ClickedMinus ->
+            model - 1
+
+
+view : Model -> Html Msg
+view model =
+    Html.div [] 
+        [ Html.button
+            [ Event.onClick ClickedMinus ]
+            [ Html.text "-" ]
+        , Html.text (String.fromInt model)
+        , Html.button
+            [ Event.onClick ClickedPlus ]
+            [ Html.text "+" ]
+        ]
