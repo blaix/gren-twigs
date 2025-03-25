@@ -7,10 +7,11 @@ import Html.Events as Event
 
 main : Program {} Model Msg
 main =
-    Browser.sandbox
+    Browser.element
         { init = init
         , update = update
         , view = view
+        , subscriptions = subscriptions
         }
 
 
@@ -18,9 +19,11 @@ type alias Model =
     Int
 
 
-init : Int
-init =
-    0
+init : flags -> { model : Model, command : Cmd Msg }
+init _ =
+    { model = 0
+    , command = Cmd.none
+    }
 
 
 type Msg
@@ -28,14 +31,18 @@ type Msg
     | ClickedMinus
 
 
-update : Msg -> Model -> Model
+update : Msg -> Model -> { model : Model, command : Cmd Msg }
 update msg model =
     when msg is
         ClickedPlus ->
-            model + 1
+            { model = model + 1
+            , command = Cmd.none
+            }
         
         ClickedMinus ->
-            model - 1
+            { model = model - 1
+            , command = Cmd.none
+            }
 
 
 view : Model -> Html Msg
@@ -49,3 +56,8 @@ view model =
             [ Event.onClick ClickedPlus ]
             [ Html.text "+" ]
         ]
+
+
+subscriptions : Model -> Sub Msg
+subscriptions _ =
+    Sub.none
