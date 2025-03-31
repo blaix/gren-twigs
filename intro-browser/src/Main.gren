@@ -3,6 +3,9 @@ module Main exposing (main)
 import Browser
 import Html exposing (Html)
 import Html.Events as Event
+import LocalStorage
+import Task
+import WebStorage
 
 
 main : Program {} Model Msg
@@ -22,13 +25,16 @@ type alias Model =
 init : flags -> { model : Model, command : Cmd Msg }
 init _ =
     { model = 0
-    , command = Cmd.none
+    , command =
+        LocalStorage.get "count"
+            |> Task.attempt GotCount
     }
 
 
 type Msg
     = ClickedPlus
     | ClickedMinus
+    | GotCount (Result WebStorage.ReadError String)
 
 
 update : Msg -> Model -> { model : Model, command : Cmd Msg }
@@ -41,6 +47,18 @@ update msg model =
         
         ClickedMinus ->
             { model = model - 1
+            , command = Cmd.none
+            }
+
+        GotCount (Ok count) ->
+            { model = 
+                String.toInt count
+                    |> Maybe.withDefault 0
+            , command = Cmd.none
+            }
+
+        GotCount (Err error) ->
+            { model = model
             , command = Cmd.none
             }
 
