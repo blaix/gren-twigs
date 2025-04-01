@@ -19,12 +19,23 @@ main =
 
 
 type alias Model =
-    Int
+    { count : Int
+    , error : Maybe Error
+    }
+
+
+type Error
+    = NoValue
+    | StorageDisabled
+    | StorageFull
 
 
 init : flags -> { model : Model, command : Cmd Msg }
 init _ =
-    { model = 0
+    { model =
+        { count = 0
+        , error = Nothing
+        }
     , command =
         LocalStorage.get "count"
             |> Task.attempt GotCount
@@ -41,24 +52,35 @@ update : Msg -> Model -> { model : Model, command : Cmd Msg }
 update msg model =
     when msg is
         ClickedPlus ->
-            { model = model + 1
+            { model = 
+                { model | count = model.count + 1 }
             , command = Cmd.none
             }
         
         ClickedMinus ->
-            { model = model - 1
+            { model =
+                { model | count = model.count - 1 }
             , command = Cmd.none
             }
 
         GotCount (Ok count) ->
             { model = 
-                String.toInt count
-                    |> Maybe.withDefault 0
+                { model
+                    | count =
+                        String.toInt count
+                            |> Maybe.withDefault 0
+                }
             , command = Cmd.none
             }
 
         GotCount (Err error) ->
-            { model = model
+            { model =
+                { model
+                    | error =
+                        when error is
+                            WebStorage.NoValue -> Just NoValue
+                            WebStorage.ReadBlocked -> Just StorageDisabled
+                }
             , command = Cmd.none
             }
 
@@ -69,10 +91,20 @@ view model =
         [ Html.button
             [ Event.onClick ClickedMinus ]
             [ Html.text "-" ]
-        , Html.text (String.fromInt model)
+        , Html.text (String.fromInt model.count)
         , Html.button
             [ Event.onClick ClickedPlus ]
             [ Html.text "+" ]
+        , Html.p []
+            [ Html.text <|
+                when model.error is
+                    Nothing -> ""
+                    Just error ->
+                        when error is
+                            NoValue -> "Nothing in local storage"
+                            StorageDisabled -> "Local storage is disabled"
+                            StorageFull -> "Local storage is full"
+            ]
         ]
 
 
