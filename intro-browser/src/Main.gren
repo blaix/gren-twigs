@@ -46,21 +46,34 @@ type Msg
     = ClickedPlus
     | ClickedMinus
     | GotCount (Result WebStorage.ReadError String)
+    | SetCount (Result WebStorage.WriteError {})
 
 
 update : Msg -> Model -> { model : Model, command : Cmd Msg }
 update msg model =
     when msg is
         ClickedPlus ->
+            let
+                newCount =
+                    model.count + 1
+            in
             { model = 
-                { model | count = model.count + 1 }
-            , command = Cmd.none
+                { model | count = newCount }
+            , command =
+                LocalStorage.set "count" (String.fromInt newCount)
+                    |> Task.attempt SetCount
             }
         
         ClickedMinus ->
+            let
+                newCount =
+                    model.count - 1
+            in
             { model =
-                { model | count = model.count - 1 }
-            , command = Cmd.none
+                { model | count = newCount }
+            , command =
+                LocalStorage.set "count" (String.fromInt newCount)
+                    |> Task.attempt SetCount
             }
 
         GotCount (Ok count) ->
@@ -84,6 +97,23 @@ update msg model =
             , command = Cmd.none
             }
 
+        SetCount (Ok _) ->
+            { model = model
+            , command = Cmd.none
+            }
+        
+        SetCount (Err error) ->
+            { model =
+                { model
+                    | error =
+                        when error is
+                            WebStorage.QuotaExceeded -> Just StorageFull
+                            WebStorage.WriteBlocked -> Just StorageDisabled
+                }
+            , command =
+                Cmd.none
+            }
+
 
 view : Model -> Html Msg
 view model =
@@ -101,7 +131,7 @@ view model =
                     Nothing -> ""
                     Just error ->
                         when error is
-                            NoValue -> "Nothing in local storage"
+                            NoValue -> ""
                             StorageDisabled -> "Local storage is disabled"
                             StorageFull -> "Local storage is full"
             ]
