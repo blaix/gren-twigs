@@ -1,0 +1,44 @@
+module Main exposing (main)
+
+
+import Init
+import Node
+
+
+main : Node.Program Model Msg
+main =
+    Node.defineProgram
+        { init = init
+        , update = update
+        , subscriptions = subscriptions
+        }
+
+
+type alias Model =
+    {}
+
+
+init : Node.Environment -> Init.Task { model : Model, command : Cmd Msg }
+init env =
+    Node.startProgram
+        { model = {}
+        , command = Cmd.none
+        }
+
+
+type Msg
+    = NoOp
+
+
+update : Msg -> Model -> { model : Model, command : Cmd Msg }
+update msg model =
+    when msg is
+        NoOp -> 
+            { model = model
+            , command = Cmd.none
+            }
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    Sub.none
