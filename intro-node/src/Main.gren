@@ -1,8 +1,11 @@
 module Main exposing (main)
 
 
+import Bytes exposing (Bytes)
 import Init
 import Node
+import Stream
+import Task
 
 
 main : Node.Program Model Msg
@@ -22,7 +25,8 @@ init : Node.Environment -> Init.Task { model : Model, command : Cmd Msg }
 init env =
     Node.startProgram
         { model = {}
-        , command = Cmd.none
+        , command =
+            print "Hello from node!" env.stdout
         }
 
 
@@ -42,3 +46,10 @@ update msg model =
 subscriptions : Model -> Sub Msg
 subscriptions model =
     Sub.none
+
+
+print : String -> Stream.Writable Bytes -> Cmd Msg
+print string stream =
+    Stream.writeLineAsBytes string stream
+        |> Task.onError (\_ -> Task.succeed stream)
+        |> Task.execute
