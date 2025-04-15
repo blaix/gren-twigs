@@ -1,0 +1,63 @@
+module Main exposing (main)
+
+
+import Bytes exposing (Bytes)
+import Init
+import Node
+import Stream
+import Task
+import Time
+
+
+main : Node.Program Model Msg
+main =
+    Node.defineProgram
+        { init = init
+        , update = update
+        , subscriptions = subscriptions
+        }
+
+
+type alias Model =
+    { stdout : Stream.Writable Bytes
+    }
+
+
+init : Node.Environment -> Init.Task { model : Model, command : Cmd Msg }
+init env =
+    Node.startProgram
+        { model = 
+            { stdout = env.stdout
+            }
+        , command =
+            Cmd.none
+        }
+
+
+type Msg
+    = Tick Time.Posix
+
+
+update : Msg -> Model -> { model : Model, command : Cmd Msg }
+update msg model =
+    when msg is
+        Tick time -> 
+            { model = model
+            , command =
+                time
+                    |> Time.posixToMillis
+                    |> String.fromInt
+                    |> print model.stdout
+            }
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    Time.every 2.0 Tick
+
+
+print : Stream.Writable Bytes -> String -> Cmd Msg
+print stream string =
+    Stream.writeLineAsBytes string stream
+        |> Task.onError (\_ -> Task.succeed stream)
+        |> Task.execute
