@@ -6,6 +6,7 @@ import Init
 import Node
 import Stream
 import Task
+import Time
 
 
 main : Node.Program Model Msg
@@ -18,38 +19,45 @@ main =
 
 
 type alias Model =
-    {}
+    { stdout : Stream.Writable Bytes
+    }
 
 
 init : Node.Environment -> Init.Task { model : Model, command : Cmd Msg }
 init env =
     Node.startProgram
-        { model = {}
+        { model = 
+            { stdout = env.stdout
+            }
         , command =
-            print "Hello from node!" env.stdout
+            Cmd.none
         }
 
 
 type Msg
-    = NoOp
+    = Tick Time.Posix
 
 
 update : Msg -> Model -> { model : Model, command : Cmd Msg }
 update msg model =
     when msg is
-        NoOp -> 
+        Tick time -> 
             { model = model
-            , command = Cmd.none
+            , command =
+                time
+                    |> Time.posixToMillis
+                    |> String.fromInt
+                    |> print model.stdout
             }
 
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    Sub.none
+    Time.every 2.0 Tick
 
 
-print : String -> Stream.Writable Bytes -> Cmd Msg
-print string stream =
+print : Stream.Writable Bytes -> String -> Cmd Msg
+print stream string =
     Stream.writeLineAsBytes string stream
         |> Task.onError (\_ -> Task.succeed stream)
         |> Task.execute
