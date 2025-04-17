@@ -7,27 +7,37 @@ import Node
 import Stream
 import Task
 import Time
+import Tui
+import UI
 
 
-main : Node.Program Model Msg
+main : Tui.Program Model Msg
 main =
-    Node.defineProgram
+    Tui.defineProgram
         { init = init
         , update = update
         , subscriptions = subscriptions
+        , view = view
+        , onInput = GotInput
         }
 
 
 type alias Model =
     { stdout : Stream.Writable Bytes
+    , time : String
+    , x : Int
+    , y : Int
     }
 
 
-init : Node.Environment -> Init.Task { model : Model, command : Cmd Msg }
+init : Tui.Environment -> Init.Task { model : Model, command : Cmd Msg }
 init env =
     Node.startProgram
         { model = 
             { stdout = env.stdout
+            , time = "0"
+            , x = 0
+            , y = 0
             }
         , command =
             Cmd.none
@@ -36,19 +46,50 @@ init env =
 
 type Msg
     = Tick Time.Posix
+    | GotInput Tui.Input
 
 
 update : Msg -> Model -> { model : Model, command : Cmd Msg }
 update msg model =
     when msg is
         Tick time -> 
-            { model = model
+            { model =
+                { model
+                    | time =
+                        time
+                            |> Time.posixToMillis
+                            |> String.fromInt
+                }
             , command =
-                time
-                    |> Time.posixToMillis
-                    |> String.fromInt
-                    |> print model.stdout
+                Cmd.none
             }
+
+        GotInput input ->
+            when input is
+                Tui.ArrowUp ->
+                    { model = { model | y = model.y - 1 }
+                    , command = Cmd.none
+                    }
+
+                Tui.ArrowDown ->
+                    { model = { model | y = model.y + 1 }
+                    , command = Cmd.none
+                    }
+
+                Tui.ArrowLeft ->
+                    { model = { model | x = model.x - 1 }
+                    , command = Cmd.none
+                    }
+
+                Tui.ArrowRight ->
+                    { model = { model | x = model.x + 1 }
+                    , command = Cmd.none
+                    }
+
+                _ ->
+                    { model = model
+                    , command = Cmd.none
+                    }
 
 
 subscriptions : Model -> Sub Msg
@@ -56,8 +97,12 @@ subscriptions model =
     Time.every 2.0 Tick
 
 
-print : Stream.Writable Bytes -> String -> Cmd Msg
-print stream string =
-    Stream.writeLineAsBytes string stream
-        |> Task.onError (\_ -> Task.succeed stream)
-        |> Task.execute
+view : Model -> UI.Element
+view model =
+    let
+        time =
+            (String.repeat model.y "\n") ++
+            (String.repeat model.x " ") ++
+            model.time
+    in
+    UI.text [] time
