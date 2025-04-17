@@ -1,0 +1,80 @@
+module Main exposing (main)
+
+
+import Browser
+import Email
+import Html exposing (Html)
+import Html.Attributes as Attr
+import Html.Events as Events
+
+
+main : Program {} Model Msg
+main =
+    Browser.sandbox
+        { init = init
+        , update = update
+        , view = view
+        }
+
+
+type alias User =
+    { email : String
+    }
+
+
+type alias Model =
+    { user : Maybe User
+    , emailField : String
+    }
+
+
+init : Model
+init =
+    { user = Nothing
+    , emailField = ""
+    }
+
+
+type Msg
+    = EmailFieldUpdated String
+    | EmailSubmitted
+
+
+update : Msg -> Model -> Model
+update msg model =
+    when msg is
+        EmailFieldUpdated email ->
+            { model | emailField = email }
+
+        EmailSubmitted ->
+            let
+                user =
+                    if Email.isValid model.emailField then
+                        Just { email = model.emailField }
+                    else
+                        Nothing
+            in
+            { model | user = user }
+
+
+view : Model -> Html Msg
+view model =
+    Html.div []
+        [ Html.p [] [ Html.text (userGreeting model.user) ]
+        , Html.input
+            [ Attr.value model.emailField
+            , Events.onInput EmailFieldUpdated
+            ]
+            []
+        , Html.button
+            [ Events.onClick EmailSubmitted ]
+            [ Html.text "Submit" ]
+        ]
+
+
+userGreeting : Maybe User -> String
+userGreeting maybeUser =
+    when maybeUser is
+        Nothing -> "Please sign up with a valid email"
+        Just user -> "Welcome! Your email is: " ++ user.email
+

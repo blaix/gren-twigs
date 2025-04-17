@@ -1,0 +1,8 @@
+module Email exposing
+    ( isValid
+    )
+
+
+isValid : String -> Bool
+isValid email =
+    String.contains "@" email
