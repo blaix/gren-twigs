@@ -1,8 +1,28 @@
 module Email exposing
-    ( isValid
+    ( Email
+    , fromString
+    , toString
     )
+
+
+type Email
+    = Email String
+
+
+fromString : String -> Maybe Email
+fromString email =
+    if isValid email then
+        Just (Email email)
+    else
+        Nothing
+
+
+toString : Email -> String
+toString (Email email) =
+    email
 
 
 isValid : String -> Bool
 isValid email =
     String.contains "@" email
+

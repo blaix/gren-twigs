@@ -2,7 +2,7 @@ module Main exposing (main)
 
 
 import Browser
-import Email
+import Email exposing (Email)
 import Html exposing (Html)
 import Html.Attributes as Attr
 import Html.Events as Events
@@ -18,7 +18,7 @@ main =
 
 
 type alias User =
-    { email : String
+    { email : Email
     }
 
 
@@ -49,10 +49,11 @@ update msg model =
         EmailSubmitted ->
             let
                 user =
-                    if Email.isValid model.emailField then
-                        Just { email = model.emailField }
-                    else
-                        Nothing
+                    when (Email.fromString model.emailField) is
+                        Just email ->
+                            Just { email = email }
+                        Nothing ->
+                            Nothing
             in
             { model | user = user }
 
@@ -76,5 +77,5 @@ userGreeting : Maybe User -> String
 userGreeting maybeUser =
     when maybeUser is
         Nothing -> "Please sign up with a valid email"
-        Just user -> "Welcome! Your email is: " ++ user.email
+        Just user -> "Welcome! Your email is: " ++ (Email.toString user.email)
 
