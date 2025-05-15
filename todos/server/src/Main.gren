@@ -1,0 +1,122 @@
+module Main exposing (main)
+
+import Db
+import Db.Decode
+import HttpClient
+import Init
+import Gen.Components.Counter
+import Node exposing (Environment)
+import Prettynice
+import Prettynice.Request exposing (Request)
+import Prettynice.Response as Response exposing (Response)
+import Task exposing (Task)
+import Transmutable.Html as H exposing (Html)
+import Transmutable.Html.Attributes as A
+
+
+main : Prettynice.Program Model {}
+main =
+    Prettynice.defineProgram
+        { init = init
+        , router = router
+        }
+
+
+type alias Model =
+    { db : Db.Connection
+    }
+
+
+type alias Todo =
+    { done : Bool
+    , name : String
+    }
+
+
+init : Environment -> Prettynice.Init Model {}
+init env =
+    Init.await HttpClient.initialize <| \httpPerm ->
+        Prettynice.startProgram
+            { env = env
+            , host = "localhost"
+            , port_ = 3000
+            , model =
+                { db = Db.init httpPerm "http://localhost:12321/todos"
+                }
+            }
+
+
+router : Model -> Request -> Response msg -> Task Never (Response msg)
+router model request response =
+    when request.path is
+
+        -- root path: /
+        [] ->
+            getTodos model.db
+                |> Task.andThen
+                    (\todos ->
+                        response
+                            |> viewHome todos
+                            |> Task.succeed
+                    )
+                |> Task.onError
+                    (\error ->
+                        response
+                            |> Response.setStatus 500
+                            |> Response.asText (Debug.toString error)
+                            |> Task.succeed
+                    )
+        
+        -- paths like: /hello/mary
+        [ "hello", name ] ->
+            response
+                |> Response.asText ("Hello, " ++ name)
+                |> Task.succeed
+
+        -- all other paths 404
+        _ ->
+            response
+                |> Response.setStatus 404
+                |> Response.asText "not found"
+                |> Task.succeed
+
+
+getTodos : Db.Connection -> Task Db.Error (Array Todo)
+getTodos db =
+    Db.getAll db
+        { query = "select done, name from todos"
+        , parameters = []
+        , decoder =
+            Db.Decode.get2
+                (Db.Decode.bool "done")
+                (Db.Decode.string "name")
+                (\done name -> { done = done, name = name })
+        }
+
+
+viewHome : Array Todo -> Response msg -> Response msg
+viewHome todos =
+    Response.asHtml
+        { title = "My Website"
+        , head = [ linkStylesheet ]
+        , body =
+            [ H.h1 [] [ H.text "Todo List" ]
+            , H.ul [] (Array.map viewTodo todos)
+            ]
+        }
+
+
+viewTodo : Todo -> Html msg
+viewTodo todo =
+    H.li []
+        [ if todo.done then
+            H.s [] [ H.text todo.name ]
+          else
+            H.text todo.name
+        ]
+
+
+linkStylesheet : Html msg
+linkStylesheet =
+    -- Everything in public/ will be available at the root url path.
+    H.link [ A.rel "stylesheet", A.href "/styles.css" ]
