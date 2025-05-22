@@ -1,0 +1,182 @@
+module Main exposing (main)
+
+
+import Ansi
+import Bytes exposing (Bytes)
+import ChildProcess exposing (FailedRun, SuccessfulRun)
+import Init
+import Node
+import Stream
+import Task exposing (Task)
+import Time
+import Tui
+import UI
+
+
+main : Tui.Program Model Msg
+main =
+    Tui.defineProgram
+        { init = init
+        , update = update
+        , view = view
+        , subscriptions = subscriptions
+        , onInput = GotInput
+        }
+
+
+type alias Model =
+    { stdout : Stream.Writable Bytes
+    , procPerm : ChildProcess.Permission
+    , output : String
+    , lastTick : Millis
+    , remaining : Millis
+    }
+
+
+type alias Millis =
+    Int
+
+
+init : Tui.Environment -> Init.Task { model : Model, command : Cmd Msg }
+init env =
+    Init.await ChildProcess.initialize <| \procPerm ->
+    Init.awaitTask Time.now <| \time ->
+        let
+            lastTick =
+                Time.posixToMillis time
+
+            remaining =
+                10 * 60 * 1000 -- 10 mins
+        in
+        Node.startProgram
+            { model = 
+                { stdout = env.stdout
+                , procPerm = procPerm
+                , output = ""
+                , lastTick = lastTick
+                , remaining = remaining
+                }
+            , command = 
+                Cmd.batch
+                    [ Tui.hideCursor env.stdout
+                        |> Task.execute
+                    , cowsay procPerm (millisToString remaining)
+                        |> Task.attempt GotOutput
+                    ]
+            }
+
+
+millisToMins : Millis -> Int
+millisToMins millis =
+    millis // 1000 // 60
+
+
+millisToSeconds : Millis -> Int
+millisToSeconds millis =
+    let
+        minutes =
+            millisToMins millis
+    in
+    (millis - (minutes * 60 * 1000)) // 1000
+
+
+millisToString : Millis -> String
+millisToString millis =
+    let
+        mins =
+            millisToMins millis
+                |> String.fromInt
+                |> String.padLeft 2 '0'
+        
+        seconds =
+            millisToSeconds millis
+                |> String.fromInt
+                |> String.padLeft 2 '0'
+    in
+    mins ++ ":" ++ seconds
+
+
+cowsay : ChildProcess.Permission -> String -> Task FailedRun SuccessfulRun
+cowsay procPerm output =
+    ChildProcess.run procPerm "cowsay" [ output ]
+        ChildProcess.defaultRunOptions
+
+
+type Msg
+    = GotInput Tui.Input
+    | GotOutput (Result FailedRun SuccessfulRun)
+    | Tick Time.Posix
+
+
+update : Msg -> Model -> { model : Model, command : Cmd Msg }
+update msg model =
+    when msg is
+        GotInput input ->
+            when input is
+                Tui.Escape ->
+                    { model = model
+                    , command = 
+                        Tui.exit model.stdout
+                            |> Task.execute
+                    }
+
+                _ ->
+                    { model = model
+                    , command = 
+                        Cmd.none
+                    }
+
+        GotOutput (Ok run) ->
+            { model =
+                { model
+                    | output =
+                        run.stdout
+                            |> Bytes.toString
+                            |> Maybe.withDefault "Can't decode cowsay output!"
+                }
+            , command =
+                Cmd.none
+            }
+
+        GotOutput (Err run) ->
+            { model =
+                { model
+                    | output =
+                        run.stderr
+                            |> Bytes.toString
+                            |> Maybe.withDefault "Can't decode cowsay error!"
+                }
+            , command =
+                Cmd.none
+            }
+
+        Tick time ->
+            let
+                newLastTick =
+                    Time.posixToMillis time
+
+                delta =
+                    newLastTick - model.lastTick
+
+                newRemaining =
+                    model.remaining - delta
+            in 
+            { model =
+                { model
+                    | lastTick = newLastTick
+                    , remaining = newRemaining
+                }
+            , command =
+                cowsay model.procPerm (millisToString newRemaining)
+                    |> Task.attempt GotOutput
+            }
+
+
+view : Model -> UI.Element
+view model =
+    UI.text [] model.output
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    Time.every 1000 Tick
