@@ -12,6 +12,7 @@ import Time
 import Tui
 import UI
 import UI.Attribute as Attr
+import UI.TextField as TextField exposing (TextField)
 
 
 main : Tui.Program Model Msg
@@ -30,7 +31,8 @@ type alias Model =
     , procPerm : ChildProcess.Permission
     , output : String
     , lastTick : Millis
-    , remaining : Millis
+    , remaining : Maybe Millis
+    , remainingField : TextField
     , paused : Bool
     }
 
@@ -46,9 +48,6 @@ init env =
         let
             lastTick =
                 Time.posixToMillis time
-
-            remaining =
-                10 * 60 * 1000 -- 10 mins
         in
         Node.startProgram
             { model = 
@@ -56,16 +55,13 @@ init env =
                 , procPerm = procPerm
                 , output = ""
                 , lastTick = lastTick
-                , remaining = remaining
+                , remaining = Nothing
+                , remainingField = TextField.init ""
                 , paused = True
                 }
             , command = 
-                Cmd.batch
-                    [ Tui.hideCursor env.stdout
-                        |> Task.execute
-                    , cowsay procPerm (millisToString remaining)
-                        |> Task.attempt GotOutput
-                    ]
+                Tui.hideCursor env.stdout
+                    |> Task.execute
             }
 
 
@@ -115,29 +111,63 @@ update : Msg -> Model -> { model : Model, command : Cmd Msg }
 update msg model =
     when msg is
         GotInput input ->
-            when input is
-                Tui.Escape ->
-                    { model = model
-                    , command = 
-                        Tui.exit model.stdout
-                            |> Task.execute
-                    }
+            when model.remaining is
+                Just remaining ->
+                    when input is
+                        Tui.Escape ->
+                            { model = model
+                            , command = 
+                                Tui.exit model.stdout
+                                    |> Task.execute
+                            }
 
-                Tui.KeyChar "p" ->
-                    { model = { model | paused = True }
-                    , command = Cmd.none
-                    }
+                        Tui.KeyChar "p" ->
+                            { model = { model | paused = True }
+                            , command = Cmd.none
+                            }
 
-                Tui.KeyChar "s" ->
-                    { model = { model | paused = False }
-                    , command = Cmd.none
-                    }
+                        Tui.KeyChar "s" ->
+                            { model = { model | paused = False }
+                            , command = Cmd.none
+                            }
 
-                _ ->
-                    { model = model
-                    , command = 
-                        Cmd.none
-                    }
+                        Tui.KeyChar "r" ->
+                            { model = { model | remaining = Nothing }
+                            , command = Cmd.none
+                            }
+
+                        _ ->
+                            { model = model
+                            , command = 
+                                Cmd.none
+                            }
+
+                Nothing ->
+                    when input is
+                        Tui.Return ->
+                            { model =
+                                { model
+                                    | remaining =
+                                        TextField.toString model.remainingField
+                                            |> String.toInt
+                                            |> Maybe.map
+                                                (\remaining ->
+                                                    remaining * 60 * 1000
+                                                )
+                                }
+                            , command =
+                                Cmd.none
+                            }
+
+                        _ ->
+                            { model =
+                                { model
+                                    | remainingField = TextField.update input model.remainingField
+                                }
+                            , command =
+                                Cmd.none
+                            }
+                    
 
         GotOutput (Ok run) ->
             { model =
@@ -164,32 +194,49 @@ update msg model =
             }
 
         Tick time ->
-            let
-                newLastTick =
-                    Time.posixToMillis time
+            when model.remaining is
+                Just remaining ->
+                    let
+                        newLastTick =
+                            Time.posixToMillis time
 
-                delta =
-                    newLastTick - model.lastTick
+                        delta =
+                            newLastTick - model.lastTick
 
-                newRemaining =
-                    if model.paused then
-                        model.remaining
-                    else
-                        model.remaining - delta
-            in 
-            { model =
-                { model
-                    | lastTick = newLastTick
-                    , remaining = newRemaining
-                }
-            , command =
-                cowsay model.procPerm (millisToString newRemaining)
-                    |> Task.attempt GotOutput
-            }
+                        newRemaining =
+                            if model.paused then
+                                remaining
+                            else
+                                remaining - delta
+                    in 
+                    { model =
+                        { model
+                            | lastTick = newLastTick
+                            , remaining = Just newRemaining
+                        }
+                    , command =
+                        cowsay model.procPerm (millisToString newRemaining)
+                            |> Task.attempt GotOutput
+                    }
+
+                Nothing ->
+                    { model = model
+                    , command = Cmd.none
+                    }
 
 
 view : Model -> UI.Element
 view model =
+    when model.remaining is
+        Just _ ->
+            viewTimer model
+
+        Nothing ->
+            viewForm model
+
+
+viewTimer : Model -> UI.Element
+viewTimer model =
     let
         color =
             if model.paused then
@@ -200,10 +247,16 @@ view model =
     UI.column []
         [ UI.text
             [ Attr.bgColor Ansi.White, Attr.color Ansi.Black ]
-            "[p]ause [s]tart"
+            "[p]ause [s]tart [r]estart"
         , UI.text [ Attr.color color ] model.output
         ]
 
+viewForm : Model -> UI.Element
+viewForm model =
+    UI.row []
+        [ UI.text [] "Minutes: "
+        , TextField.view model.remainingField
+        ]
 
 
 subscriptions : Model -> Sub Msg
