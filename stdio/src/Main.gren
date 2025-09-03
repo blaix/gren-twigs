@@ -1,0 +1,87 @@
+module Main exposing (main)
+
+import Bytes exposing (Bytes)
+import Node
+import Stream
+import Stream.Log
+import Init
+import Task
+
+
+main : Node.Program Model Msg
+main =
+    Node.defineProgram
+        { init = init
+        , update = update
+        , subscriptions = subscriptions
+        }
+
+
+type alias Model =
+    { stdout : Stream.Writable Bytes
+    , stderr : Stream.Writable Bytes
+    , stdin : Stream.Readable Bytes
+    }
+
+init : Node.Environment -> Init.Task { model : Model, command : Cmd Msg }
+init env =
+    Node.startProgram
+        { model = 
+            { stdout = env.stdout
+            , stderr = env.stderr
+            , stdin = env.stdin
+            }
+        , command =
+            Stream.writeLineAsBytes "Hey, what's your name?" env.stdout
+                |> Task.attempt AskedForName
+        }
+
+
+type Msg
+    = AskedForName (Result Stream.Error (Stream.Writable Bytes))
+    | GotName (Result Stream.Error String)
+
+
+update : Msg -> Model -> { model : Model, command : Cmd Msg }
+update msg model =
+    when msg is
+        AskedForName (Ok _) ->
+            { model = model
+            , command =
+                Stream.readBytesAsString model.stdin
+                    |> Task.attempt GotName
+            }
+
+        AskedForName (Err _) ->
+            { model = model
+            , command =
+                Stream.Log.line model.stderr "Failed to write output"
+                    |> Task.andThen (\_ -> Node.setExitCode 1)
+                    |> Task.execute
+            }
+
+        GotName (Ok name) ->
+            let
+                response =
+                    "Hello, " ++
+                    (String.trim name) ++
+                    "!"
+            in
+            { model = model
+            , command =
+                Stream.Log.line model.stdout response
+                    |> Task.execute
+            }
+
+        GotName (Err _) ->
+            { model = model
+            , command =
+                Stream.Log.line model.stderr "Failed to read input"
+                    |> Task.andThen (\_ -> Node.setExitCode 2)
+                    |> Task.execute
+            }
+
+
+subscriptions : Model -> Sub Msg
+subscriptions model =
+    Sub.none
