@@ -1,0 +1,13 @@
+module Palindrome exposing (check)
+
+check : String -> Bool
+check string =
+    let
+        cleaned =
+            string
+                |> String.toLower
+    in
+    cleaned == (String.reverse cleaned)
+
+
+

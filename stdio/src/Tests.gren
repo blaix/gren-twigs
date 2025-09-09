@@ -1,0 +1,25 @@
+module Tests exposing (main)
+
+import Expect
+import Test exposing (describe, test)
+import Test.Runner.Node exposing (Program, run)
+import Palindrome
+
+
+main : Program
+main =
+    run <|
+        describe "Palindrome.check"
+            [ test "true if string is a palindrome" <| \_ ->
+                Palindrome.check "bob"
+                    |> Expect.equal True
+            , test "false if string is not a palindrome" <| \_ ->
+                Palindrome.check "justin"
+                    |> Expect.equal False
+            , test "handles capitalization" <| \_ ->
+                Palindrome.check "Bob"
+                    |> Expect.equal True
+            , test "handles punctuation" <| \_ ->
+                Palindrome.check "Madam I'm Adam"
+                    |> Expect.equal True
+            ]
