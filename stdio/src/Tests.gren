@@ -20,6 +20,6 @@ main =
                 Palindrome.check "Bob"
                     |> Expect.equal True
             , test "handles punctuation" <| \_ ->
-                Palindrome.check "Madam I'm Adam"
+                Palindrome.check "Madam, I'm Adam."
                     |> Expect.equal True
             ]

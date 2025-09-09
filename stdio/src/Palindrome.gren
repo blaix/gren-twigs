@@ -1,13 +1,20 @@
 module Palindrome exposing (check)
 
+import String.Regex as Regex exposing (Regex)
+
+
 check : String -> Bool
 check string =
     let
         cleaned =
             string
                 |> String.toLower
+                |> Regex.replace nonAlphaNum (\_ -> "")
     in
     cleaned == (String.reverse cleaned)
 
 
-
+nonAlphaNum : Regex
+nonAlphaNum =
+    Regex.fromString "[^a-zA-Z0-9]+"
+        |> Maybe.withDefault Regex.never
