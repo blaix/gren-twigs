@@ -1,7 +1,8 @@
 module Tests exposing (main)
 
 import Expect
-import Test exposing (describe, test)
+import Fuzz exposing (string, int)
+import Test exposing (describe, test, fuzz)
 import Test.Runner.Node exposing (Program, run)
 import Palindrome
 
@@ -22,4 +23,12 @@ main =
             , test "handles punctuation" <| \_ ->
                 Palindrome.check "Madam, I'm Adam."
                     |> Expect.equal True
+            , fuzz string "forced palindromes" <| \s ->
+                s ++ String.reverse s
+                    |> Palindrome.check
+                    |> Expect.equal True
+            , fuzz int "forced non-palindromes" <| \i ->
+                String.fromInt i ++ String.fromInt (i + 1)
+                    |> Palindrome.check
+                    |> Expect.equal False
             ]
